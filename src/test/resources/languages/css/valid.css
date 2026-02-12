@@ -1,0 +1,25 @@
+/* Valid CSS3 */
+body {
+    margin: 0;
+    padding: 0;
+    font-family: Arial, sans-serif;
+}
+
+.container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+}
+
+#header {
+    background: linear-gradient(to right, #ff0000, #00ff00);
+    @media (max-width: 600px) {
+        font-size: 14px;
+    }
+}
+
+.btn:hover {
+    transform: scale(1.1);
+    transition: all 0.3s ease;
+}

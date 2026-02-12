@@ -1,0 +1,13 @@
+body {
+    margin: 0
+    padding: 0;
+    font-family: Arial, sans-serif
+}
+
+.unclosed {
+    color: red;
+/* Missing closing brace for .unclosed */
+
+.next-rule {
+    display: block;
+}
