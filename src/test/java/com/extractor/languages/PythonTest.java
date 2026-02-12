@@ -14,7 +14,7 @@ public class PythonTest extends LanguageTestBase {
         
         assertNotNull(root);
         assertNodeExists(root, NodeType.CLASS, "Sample");
-        assertNodeExists(root, NodeType.METHOD, "process");
+        assertNodeExists(root, NodeType.FUNCTION, "process");
         assertNodeExists(root, NodeType.FUNCTION, "main");
     }
 
@@ -25,10 +25,9 @@ public class PythonTest extends LanguageTestBase {
         
         assertNotNull(root);
         assertNodeExists(root, NodeType.CLASS, "Comprehensive");
-        assertNodeExists(root, NodeType.METHOD, "process_data");
+        assertNodeExists(root, NodeType.FUNCTION, "process_data");
         assertNodeExists(root, NodeType.FUNCTION, "top_level_function");
         
-        // Check for decorators (if implemented) or at least that they don't break things
         // Check for nested functions
         assertNodeExists(root, NodeType.FUNCTION, "nested_helper");
     }

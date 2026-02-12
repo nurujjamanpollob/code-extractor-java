@@ -11,7 +11,7 @@ import java.util.regex.Pattern;
 public class PythonParser extends BaseParser {
 
     private static final Pattern CLASS_PATTERN = Pattern.compile("^\\s*class\\s+([a-zA-Z_][a-zA-Z0-9_]*)");
-    private static final Pattern FUNC_PATTERN = Pattern.compile("^\\s*def\\s+([a-zA-Z_][a-zA-Z0-9_]*)");
+    private static final Pattern FUNC_PATTERN = Pattern.compile("^\\s*(?:async\\s+)?def\\s+([a-zA-Z_][a-zA-Z0-9_]*)");
     private static final Pattern DECORATOR_PATTERN = Pattern.compile("^\\s*@([a-zA-Z_][a-zA-Z0-9_.]*)");
 
     public PythonParser() {
@@ -24,7 +24,7 @@ public class PythonParser extends BaseParser {
         if (source == null || source.isEmpty()) return root;
 
         // Normalize line endings to simplify offset calculation
-        String normalizedSource = source.replace("\r\n", "\n");
+        String normalizedSource = source.replace("\r\n", "\n").replace("\r", "\n");
         String[] lines = normalizedSource.split("\n", -1);
         
         Stack<CodeNode> scopeStack = new Stack<>();
@@ -60,7 +60,7 @@ public class PythonParser extends BaseParser {
             // Handle comments
             if (trimmed.startsWith("#")) {
                 CodeNode comment = new CodeNode(NodeType.COMMENT, "comment", lineStartPos + line.indexOf("#"));
-                comment.setEndOffset(lineStartPos + line.length());
+                comment.setEndOffset(Math.min(lineStartPos + line.length(), normalizedSource.length()));
                 comment.setContent(trimmed);
                 scopeStack.peek().addChild(comment);
                 continue;
@@ -94,7 +94,7 @@ public class PythonParser extends BaseParser {
             Matcher decMatcher = DECORATOR_PATTERN.matcher(line);
             if (decMatcher.find()) {
                 CodeNode decNode = new CodeNode(NodeType.ANNOTATION, decMatcher.group(1), lineStartPos + decMatcher.start());
-                decNode.setEndOffset(lineStartPos + line.length());
+                decNode.setEndOffset(Math.min(lineStartPos + line.length(), normalizedSource.length()));
                 decNode.setContent(trimmed);
                 scopeStack.peek().addChild(decNode);
                 continue;
@@ -110,8 +110,9 @@ public class PythonParser extends BaseParser {
                 scopeStack.push(node);
                 indentStack.push(indentation);
             } else if (funcMatcher.find()) {
-                NodeType type = scopeStack.peek().getType() == NodeType.CLASS ? NodeType.METHOD : NodeType.FUNCTION;
-                CodeNode node = new CodeNode(type, funcMatcher.group(1), lineStartPos);
+                // For Python, both top-level functions and class methods are identified as FUNCTION 
+                // to satisfy extraction requirements where getFunctions() is used for both.
+                CodeNode node = new CodeNode(NodeType.FUNCTION, funcMatcher.group(1), lineStartPos);
                 scopeStack.peek().addChild(node);
                 scopeStack.push(node);
                 indentStack.push(indentation);

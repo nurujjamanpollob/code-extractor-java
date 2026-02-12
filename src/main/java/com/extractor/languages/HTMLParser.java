@@ -30,7 +30,11 @@ public class HTMLParser extends BaseParser {
                     if (scanner.match("<!--")) {
                         scopeStack.peek().addChild(extractBlockComment(scanner, "-->"));
                     } else {
-                        scanner.advance();
+                        // Skip DocType or other <! tags
+                        while (!scanner.isAtEnd() && scanner.peek() != '>') {
+                            scanner.advance();
+                        }
+                        if (!scanner.isAtEnd()) scanner.advance();
                     }
                 } else if (scanner.peekNext() == '/') {
                     // Close tag
@@ -44,10 +48,17 @@ public class HTMLParser extends BaseParser {
                         scanner.advance(); // >
                     }
                     
-                    if (scopeStack.size() > 1 && scopeStack.peek().getName().equals(tagName)) {
+                    if (scopeStack.size() > 1 && scopeStack.peek().getName().equalsIgnoreCase(tagName)) {
                         CodeNode closed = scopeStack.pop();
                         closed.setEndOffset(scanner.getPos());
                         closed.setContent(source.substring(closed.getStartOffset(), closed.getEndOffset()));
+                        
+                        // Handle embedded CSS or JS when the tag is closed
+                        if ("style".equalsIgnoreCase(tagName)) {
+                            parseEmbeddedContent(closed, new CSSParser());
+                        } else if ("script".equalsIgnoreCase(tagName)) {
+                            parseEmbeddedContent(closed, new JSParser());
+                        }
                     }
                 } else {
                     // Open tag
@@ -93,6 +104,33 @@ public class HTMLParser extends BaseParser {
         return root;
     }
 
+    private void parseEmbeddedContent(CodeNode node, BaseParser parser) {
+        String content = node.getContent();
+        if (content == null) return;
+        
+        int openTagEnd = content.indexOf('>') + 1;
+        int closeTagStart = content.lastIndexOf('<');
+        
+        if (openTagEnd > 0 && closeTagStart > openTagEnd) {
+            String embeddedCode = content.substring(openTagEnd, closeTagStart);
+            CodeNode embeddedRoot = parser.parse(embeddedCode);
+            
+            int offsetAdjustment = node.getStartOffset() + openTagEnd;
+            for (CodeNode child : embeddedRoot.getChildren()) {
+                adjustOffsets(child, offsetAdjustment);
+                node.addChild(child);
+            }
+        }
+    }
+
+    private void adjustOffsets(CodeNode node, int adjustment) {
+        node.setStartOffset(node.getStartOffset() + adjustment);
+        node.setEndOffset(node.getEndOffset() + adjustment);
+        for (CodeNode child : node.getChildren()) {
+            adjustOffsets(child, adjustment);
+        }
+    }
+
     private String consumeIdentifier(SourceScanner scanner) {
         StringBuilder sb = new StringBuilder();
         while (!scanner.isAtEnd() && (Character.isLetterOrDigit(scanner.peek()) || scanner.peek() == '-' || scanner.peek() == '_' || scanner.peek() == ':')) {
@@ -106,5 +144,21 @@ public class HTMLParser extends BaseParser {
                "embed".equalsIgnoreCase(tag) || "hr".equalsIgnoreCase(tag) || "img".equalsIgnoreCase(tag) || "input".equalsIgnoreCase(tag) ||
                "link".equalsIgnoreCase(tag) || "meta".equalsIgnoreCase(tag) || "param".equalsIgnoreCase(tag) || "source".equalsIgnoreCase(tag) ||
                "track".equalsIgnoreCase(tag) || "wbr".equalsIgnoreCase(tag);
+    }
+    
+    @Override
+    protected void finalizeScope(Stack<CodeNode> scopeStack, int endPos, String source) {
+        while (scopeStack.size() > 1) {
+            CodeNode node = scopeStack.pop();
+            node.setEndOffset(endPos);
+            node.setContent(source.substring(node.getStartOffset(), endPos));
+            
+            // Still try to parse embedded content if the file ends before the closing tag
+            if ("style".equalsIgnoreCase(node.getName())) {
+                parseEmbeddedContent(node, new CSSParser());
+            } else if ("script".equalsIgnoreCase(node.getName())) {
+                parseEmbeddedContent(node, new JSParser());
+            }
+        }
     }
 }
